@@ -205,10 +205,20 @@ func (r *Recorder) For(to notify.Notifiable) []Record {
 // AssertSent fails unless exactly one notification of type T was delivered to
 // this recipient, and returns it.
 //
+// A method with its own type parameter, which this Go allows on a concrete
+// type — so it reads as what it is:
+//
+//	followed := recorder.AssertSent[Followed](t, ada)
+//
+// rather than threading the recorder through a package-level function. It is
+// the shape cache uses for GetAs and RememberAs, and the reason Recorder is a
+// concrete type rather than an interface: a generic method cannot exist on
+// one.
+//
 // The count is exact rather than at-least-one, because "notified twice" is a
 // real bug with a real cause — a call site that fires on a repeated upsert —
 // and a looser assertion is how it ships.
-func AssertSent[T notify.Notification](t testing.TB, r *Recorder, to notify.Notifiable) T {
+func (r *Recorder) AssertSent[T notify.Notification](t testing.TB, to notify.Notifiable) T {
 	t.Helper()
 
 	var found []T
@@ -236,7 +246,7 @@ func AssertSent[T notify.Notification](t testing.TB, r *Recorder, to notify.Noti
 
 // AssertNotSent fails if any notification of type T was delivered to this
 // recipient.
-func AssertNotSent[T notify.Notification](t testing.TB, r *Recorder, to notify.Notifiable) {
+func (r *Recorder) AssertNotSent[T notify.Notification](t testing.TB, to notify.Notifiable) {
 	t.Helper()
 
 	for _, record := range r.For(to) {

@@ -204,3 +204,65 @@ func TestMarkAllReadClearsTheBadge(t *testing.T) {
 	}
 	_ = time.Now
 }
+
+// DataAs is a generic method on a concrete type, which this Go allows — so a
+// caller names the shape it wants instead of declaring a variable and passing
+// its address.
+func TestDataAsDecodesThePayload(t *testing.T) {
+	store := database.NewMemoryStore()
+	n := notify.New(database.New(store))
+
+	if err := n.Send(context.Background(), user{"1"}, followed{ActorID: "7"}); err != nil {
+		t.Fatalf("sending: %v", err)
+	}
+	rows, _, err := database.NewInbox(store).Page(context.Background(), user{"1"}, database.Cursor{})
+	if err != nil {
+		t.Fatalf("paging: %v", err)
+	}
+
+	payload, err := rows[0].DataAs[struct {
+		ActorID string `json:"actor_id"`
+	}]()
+	if err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if payload.ActorID != "7" {
+		t.Fatalf("got %v, want actor_id 7", payload)
+	}
+}
+
+// A large integer survives, which it would not through a map[string]any: a
+// float64 cannot hold 9007199254740993 and silently returns the even number
+// below it.
+func TestDataAsKeepsLargeNumbersExact(t *testing.T) {
+	row := database.Row{
+		ID:   "1",
+		Type: "probe",
+		Data: []byte(`{"big":9007199254740993}`),
+	}
+
+	payload, err := row.DataAs[struct {
+		Big json.Number `json:"big"`
+	}]()
+	if err != nil {
+		t.Fatalf("decoding: %v", err)
+	}
+	if payload.Big.String() != "9007199254740993" {
+		t.Fatalf("got %s, want 9007199254740993 — a float64 would round it",
+			payload.Big)
+	}
+}
+
+// An empty payload is the zero value and not an error: a notification that
+// carries nothing is a legitimate shape.
+func TestDataAsOnAnEmptyPayloadIsTheZeroValue(t *testing.T) {
+	row := database.Row{ID: "1", Type: "probe"}
+
+	payload, err := row.DataAs[map[string]any]()
+	if err != nil {
+		t.Fatalf("got an error for an empty payload: %v", err)
+	}
+	if payload != nil {
+		t.Fatalf("got %v, want nil", payload)
+	}
+}

@@ -1,9 +1,11 @@
 package database
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -47,6 +49,34 @@ type Row struct {
 
 	ReadAt    *time.Time
 	CreatedAt time.Time
+}
+
+// DataAs decodes this row's payload.
+//
+// A method with its own type parameter, which this Go allows on a concrete
+// type — so a caller writes what it means:
+//
+//	payload, err := row.DataAs[FollowedPayload]()
+//
+// rather than declaring a variable and remembering to pass its address.
+// It is the shape cache's GetAs uses, and the reason Row is a struct: a
+// generic method cannot exist on an interface.
+//
+// Numbers decode as json.Number, so a large integer that a float64 could
+// not hold survives — which it would not through a map[string]any, where
+// 9007199254740993 comes back as 9007199254740992.
+func (r Row) DataAs[T any]() (T, error) {
+	var out T
+	if len(r.Data) == 0 {
+		return out, nil
+	}
+	decoder := json.NewDecoder(bytes.NewReader(r.Data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&out); err != nil {
+		return out, fmt.Errorf("notify/database: decoding row %s (%s): %w",
+			r.ID, r.Type, err)
+	}
+	return out, nil
 }
 
 // Cursor pages an inbox.

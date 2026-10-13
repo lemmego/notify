@@ -85,9 +85,9 @@ func TestAssertSentFindsTheNotification(t *testing.T) {
 		t.Fatalf("sending: %v", err)
 	}
 
-	notifytest.AssertSent[followed](t, recorder, ada)
-	notifytest.AssertNotSent[replied](t, recorder, ada)
-	notifytest.AssertNotSent[followed](t, recorder, notifytest.User{ID: "2"})
+	recorder.AssertSent[followed](t, ada)
+	recorder.AssertNotSent[replied](t, ada)
+	recorder.AssertNotSent[followed](t, notifytest.User{ID: "2"})
 }
 
 // Twice is a real bug with a real cause — a call site firing on a repeated
@@ -104,7 +104,7 @@ func TestAssertSentRefusesTwoDeliveries(t *testing.T) {
 	}
 
 	fake := &recordingT{}
-	notifytest.AssertSent[followed](fake, recorder, ada)
+	recorder.AssertSent[followed](fake, ada)
 	if !fake.failed {
 		t.Fatal("AssertSent accepted two deliveries of one notification")
 	}
