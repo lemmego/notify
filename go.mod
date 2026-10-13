@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/glebarez/go-sqlite v1.22.0
-	github.com/lemmego/api v0.4.1
+	github.com/lemmego/api v0.5.0
 	github.com/lemmego/mail v0.2.0
 	github.com/lemmego/tasker v0.1.4
 	github.com/lib/pq v1.10.9
