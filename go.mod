@@ -2,7 +2,11 @@ module github.com/lemmego/notify
 
 go 1.27
 
-require github.com/lemmego/api v0.4.1
+require (
+	github.com/glebarez/go-sqlite v1.22.0
+	github.com/lemmego/api v0.4.1
+	github.com/lib/pq v1.10.9
+)
 
 require (
 	cel.dev/expr v0.18.0 // indirect
@@ -28,7 +32,6 @@ require (
 	github.com/envoyproxy/protoc-gen-validate v1.1.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gertd/go-pluralize v0.2.1 // indirect
-	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
@@ -42,7 +45,6 @@ require (
 	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/lemmego/fsys v0.1.0 // indirect
 	github.com/lemmego/migration v0.1.19 // indirect
-	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
