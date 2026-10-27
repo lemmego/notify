@@ -51,7 +51,7 @@ And fire only on a real state transition. An upsert written
 at that call site re-fires on every double-tap. Return whether a row was
 actually inserted and send on that.
 
-## The runtime hole, and how it is closed
+## Making a mismatch fail early
 
 Go has no duck typing, so a `Via` that names a channel its notification cannot
 satisfy is a **runtime** failure. Three things close it:
@@ -117,13 +117,12 @@ migrations directory. The schema is yours to read, edit and roll back;
 creating tables at boot would put tables in your database that nothing in your
 project mentions.
 
-## Deliberate decisions
+## Behaviour and limits
 
-**The root package is standard library only**, and a test enforces it. The
-first version of that test forbade a list of heavy imports and immediately
-caught `api/app` reaching a Postgres driver through `api/db` — which is why
-`Provider` lives in `notify/provider`. An application that wants in-app
-notifications should compile no SMTP client.
+**The root package is standard library only**, and a test enforces it. That
+is why `Provider` lives in `notify/provider` rather than in the root: an
+application that wants only in-app notifications should compile no SMTP client
+and no WebSocket library.
 
 **`Send` is synchronous.** The only slow channel is mail, and `mail.Queue`
 already renders on the calling goroutine and enqueues a self-contained
