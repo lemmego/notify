@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 
 	"github.com/lemmego/api/app"
 	"github.com/lemmego/notify"
@@ -51,6 +52,15 @@ type Provider struct {
 	// listeners are observers.
 	Events bool
 
+	// EventSink receives this notifier's events directly, without going
+	// through the application's emitter.
+	//
+	// It exists for observers that want the typed event rather than the
+	// emitter's untyped payload — observe/watch/observenotify is the first —
+	// and it composes with Events rather than competing with it: set both,
+	// and both are called.
+	EventSink notify.Listener
+
 	notifier *notify.Notifier
 }
 
@@ -64,11 +74,23 @@ func (p *Provider) Provide(a app.App) error {
 		return errors.New("notify: Provider has no channels; wire at least one")
 	}
 
-	opts := []notify.Option{}
+	// Collected rather than set one at a time, because WithEventSink holds a
+	// single slot: two calls would leave the second in sole possession, and
+	// an application that bridged to the emitter and then attached an
+	// observer would lose the bridge without being told.
+	var sinks []notify.Listener
 	if p.Events {
-		opts = append(opts, notify.WithEventSink(func(e notify.Event) {
+		sinks = append(sinks, func(e notify.Event) {
 			a.Dispatch(e.EventName(), e)
-		}))
+		})
+	}
+	if p.EventSink != nil {
+		sinks = append(sinks, p.EventSink)
+	}
+
+	opts := []notify.Option{}
+	if len(sinks) > 0 {
+		opts = append(opts, notify.WithEventSink(fanOut(sinks)))
 	}
 
 	p.notifier = notify.NewWithOptions(p.Channels, opts)
@@ -114,3 +136,26 @@ func joinErrors(errs []error) error { return errors.Join(errs...) }
 
 // Get resolves the notifier from the container.
 func Get(a app.App) (*notify.Notifier, bool) { return app.Lookup[*notify.Notifier](a) }
+
+// fanOut calls every sink, and keeps going when one of them panics.
+//
+// The notifier already contains a panic in the sink, so an observer cannot
+// fail the delivery it is observing. That protects the call as a whole,
+// which is not the same as protecting each member: without this, a panic in
+// the first sink would silently cost the second its event. log.Fanout
+// records the same lesson about its handlers.
+func fanOut(sinks []notify.Listener) notify.Listener {
+	return func(e notify.Event) {
+		for _, sink := range sinks {
+			func() {
+				defer func() {
+					if recovered := recover(); recovered != nil {
+						slog.Error("notify: an event sink panicked",
+							"event", e.EventName(), "panic", recovered)
+					}
+				}()
+				sink(e)
+			}()
+		}
+	}
+}
