@@ -217,7 +217,7 @@ func TestEventsAreEmittedForEachChannel(t *testing.T) {
 	var names []string
 	n := notify.NewWithOptions(
 		[]notify.Channel{&recorder{name: "database"}},
-		[]notify.Option{notify.WithEventSink(func(e notify.Event) {
+		[]notify.Option{notify.WithEventSink(func(_ context.Context, e notify.Event) {
 			names = append(names, e.EventName())
 		})},
 	)
@@ -236,7 +236,7 @@ func TestAPanickingListenerDoesNotFailTheDelivery(t *testing.T) {
 	channel := &recorder{name: "database"}
 	n := notify.NewWithOptions(
 		[]notify.Channel{channel},
-		[]notify.Option{notify.WithEventSink(func(notify.Event) {
+		[]notify.Option{notify.WithEventSink(func(context.Context, notify.Event) {
 			panic("a listener that should not be able to do this")
 		})},
 	)
@@ -257,5 +257,68 @@ func TestSendWithoutANotifierReportsIt(t *testing.T) {
 	if !errors.Is(err, notify.ErrNoNotifier) {
 		t.Fatalf("got %v, want ErrNoNotifier — a missing provider must not look "+
 			"like an application that never notifies anybody", err)
+	}
+}
+
+// TestEveryEventCarriesTheSendersContext.
+//
+// This is the reason Listener takes one. A notification entry that cannot be
+// attributed to the request that triggered it is a line in a list, and
+// "which notifications did this request send" was unanswerable while the
+// seam had no context — which is what observe's notification watcher
+// documented as a permanent limitation.
+//
+// Both the success path and the failure path are covered, because fail()
+// reaches emit by a different route from the one Send takes.
+func TestEveryEventCarriesTheSendersContext(t *testing.T) {
+	type key struct{}
+
+	for _, test := range []struct {
+		name    string
+		channel notify.Channel
+		via     []string
+		wantErr bool
+	}{
+		{name: "delivered", channel: &recorder{name: "database"}, via: []string{"database"}},
+		{
+			name:    "failed",
+			channel: &recorder{name: "database", err: errors.New("the store is down")},
+			via:     []string{"database"},
+			wantErr: true,
+		},
+		{
+			// No channel by that name, which fails before any channel is
+			// asked — a third route into emit.
+			name:    "no such channel",
+			channel: &recorder{name: "database"},
+			via:     []string{"mail"},
+			wantErr: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var seen []context.Context
+			n := notify.NewWithOptions(
+				[]notify.Channel{test.channel},
+				[]notify.Option{notify.WithEventSink(func(ctx context.Context, _ notify.Event) {
+					seen = append(seen, ctx)
+				})},
+			)
+
+			ctx := context.WithValue(context.Background(), key{}, "this request")
+			err := n.Send(ctx, user{"1"}, followed{via: test.via})
+			if (err != nil) != test.wantErr {
+				t.Fatalf("Send returned %v", err)
+			}
+
+			if len(seen) == 0 {
+				t.Fatal("no events were emitted, so this proves nothing")
+			}
+			for i, got := range seen {
+				if got.Value(key{}) != "this request" {
+					t.Errorf("event %d was delivered with a context carrying %v, not the sender's",
+						i, got.Value(key{}))
+				}
+			}
+		})
 	}
 }

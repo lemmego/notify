@@ -25,7 +25,16 @@ const (
 type Event interface{ EventName() string }
 
 // Listener observes events.
-type Listener func(Event)
+//
+// It is handed the context of the Send that caused the event, so an observer
+// can attribute a notification to the request that triggered it. The context
+// is the caller's own and may already be cancelled; a listener doing further
+// work with it should expect that.
+//
+// A listener runs synchronously on the sending goroutine, and a panic in it
+// is contained: an observer must not be able to fail the delivery it is
+// observing.
+type Listener func(ctx context.Context, e Event)
 
 // Sending is emitted before a channel is asked to deliver.
 type Sending struct {
@@ -67,20 +76,20 @@ func (Failed) EventName() string { return EventFailed }
 // A panicking sink is contained and reported, never propagated: an observer
 // must not be able to fail the delivery it is observing. cache learned the
 // same thing and added its own recover for it.
-func (n *Notifier) emit(e Event) {
+func (n *Notifier) emit(ctx context.Context, e Event) {
 	if n.sink == nil {
 		return
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			reportSinkPanic(e, r)
+			reportSinkPanic(ctx, e, r)
 		}
 	}()
-	n.sink(e)
+	n.sink(ctx, e)
 }
 
-func reportSinkPanic(e Event, r any) {
-	slog.Log(context.Background(), slog.LevelError,
+func reportSinkPanic(ctx context.Context, e Event, r any) {
+	slog.Log(ctx, slog.LevelError,
 		"notify: an event listener panicked and was contained",
 		"event", e.EventName(), "panic", r)
 }

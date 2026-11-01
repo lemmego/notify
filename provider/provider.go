@@ -80,8 +80,12 @@ func (p *Provider) Provide(a app.App) error {
 	// observer would lose the bridge without being told.
 	var sinks []notify.Listener
 	if p.Events {
-		sinks = append(sinks, func(e notify.Event) {
-			a.Dispatch(e.EventName(), e)
+		sinks = append(sinks, func(ctx context.Context, e notify.Event) {
+			// DispatchContext rather than Dispatch, so a listener on the
+			// application's emitter sees the same request the notification
+			// was sent during. api v0.10.0 is what made that possible;
+			// before it the bridge lost the context here.
+			a.DispatchContext(ctx, e.EventName(), e)
 		})
 	}
 	if p.EventSink != nil {
@@ -145,16 +149,16 @@ func Get(a app.App) (*notify.Notifier, bool) { return app.Lookup[*notify.Notifie
 // the first sink would silently cost the second its event. log.Fanout
 // records the same lesson about its handlers.
 func fanOut(sinks []notify.Listener) notify.Listener {
-	return func(e notify.Event) {
+	return func(ctx context.Context, e notify.Event) {
 		for _, sink := range sinks {
 			func() {
 				defer func() {
 					if recovered := recover(); recovered != nil {
-						slog.Error("notify: an event sink panicked",
+						slog.ErrorContext(ctx, "notify: an event sink panicked",
 							"event", e.EventName(), "panic", recovered)
 					}
 				}()
-				sink(e)
+				sink(ctx, e)
 			}()
 		}
 	}

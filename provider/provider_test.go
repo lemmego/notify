@@ -126,7 +126,7 @@ func TestEventsReachTheApplicationsEmitter(t *testing.T) {
 	}
 
 	var got []string
-	engine.On(notify.EventSent, func(payload any) error {
+	engine.On(notify.EventSent, func(_ context.Context, payload any) error {
 		event, ok := payload.(notify.Sent)
 		if !ok {
 			t.Errorf("listener received %T, want notify.Sent", payload)

@@ -12,7 +12,7 @@ import (
 // Notifier holds the wired channels and delivers notifications over them.
 type Notifier struct {
 	channels map[string]Channel
-	sink     func(Event)
+	sink     Listener
 }
 
 // Option configures a Notifier.
@@ -21,9 +21,15 @@ type Option func(*Notifier)
 // WithEventSink sends this notifier's events somewhere — typically the
 // application's event emitter, which Provider wires when asked.
 //
-// The sink is called synchronously and a panic in it is contained, because an
-// observer must not be able to fail the thing it is observing.
-func WithEventSink(sink func(Event)) Option {
+// The sink is called synchronously, with the context of the Send that
+// produced the event, and a panic in it is contained, because an observer
+// must not be able to fail the thing it is observing.
+//
+// It assigns rather than appends, and there is one slot. Provider composes
+// several sinks into one before reaching here, which is where composition
+// belongs: a second call to this option is the caller saying "this one
+// instead", and silently fanning out would make that unsayable.
+func WithEventSink(sink Listener) Option {
 	return func(n *Notifier) { n.sink = sink }
 }
 
@@ -110,7 +116,7 @@ func (n *Notifier) Send(ctx context.Context, to Notifiable, notification Notific
 	for _, channelName := range notification.Via(to) {
 		channel, ok := n.channels[channelName]
 		if !ok {
-			err := n.fail(&ChannelError{
+			err := n.fail(ctx, &ChannelError{
 				Channel: channelName, Notification: name,
 				OwnerKind: kind, OwnerID: id,
 				Err: fmt.Errorf("%w (wired: %s)", ErrNoChannel,
@@ -120,17 +126,17 @@ func (n *Notifier) Send(ctx context.Context, to Notifiable, notification Notific
 			continue
 		}
 
-		n.emit(Sending{Channel: channelName, Notification: name, OwnerKind: kind, OwnerID: id})
+		n.emit(ctx, Sending{Channel: channelName, Notification: name, OwnerKind: kind, OwnerID: id})
 
 		if err := channel.Send(ctx, to, notification); err != nil {
-			errs = append(errs, n.fail(&ChannelError{
+			errs = append(errs, n.fail(ctx, &ChannelError{
 				Channel: channelName, Notification: name,
 				OwnerKind: kind, OwnerID: id, Err: err,
 			}))
 			continue
 		}
 
-		n.emit(Sent{Channel: channelName, Notification: name, OwnerKind: kind, OwnerID: id})
+		n.emit(ctx, Sent{Channel: channelName, Notification: name, OwnerKind: kind, OwnerID: id})
 	}
 	return errors.Join(errs...)
 }
@@ -166,7 +172,7 @@ func (n *Notifier) SendTo(ctx context.Context, recipients []Notifiable, notifica
 		group := byChannel[channelName]
 		channel, ok := n.channels[channelName]
 		if !ok {
-			errs = append(errs, n.fail(&ChannelError{
+			errs = append(errs, n.fail(ctx, &ChannelError{
 				Channel: channelName, Notification: name,
 				Err: fmt.Errorf("%w (wired: %s)", ErrNoChannel,
 					strings.Join(n.Channels(), ", ")),
@@ -176,7 +182,7 @@ func (n *Notifier) SendTo(ctx context.Context, recipients []Notifiable, notifica
 
 		if bulk, ok := channel.(BulkChannel); ok {
 			if err := bulk.SendMany(ctx, group, notification); err != nil {
-				errs = append(errs, n.fail(&ChannelError{
+				errs = append(errs, n.fail(ctx, &ChannelError{
 					Channel: channelName, Notification: name, Err: err,
 				}))
 			}
@@ -186,7 +192,7 @@ func (n *Notifier) SendTo(ctx context.Context, recipients []Notifiable, notifica
 		for _, to := range group {
 			kind, id := to.NotifiableKey()
 			if err := channel.Send(ctx, to, notification); err != nil {
-				errs = append(errs, n.fail(&ChannelError{
+				errs = append(errs, n.fail(ctx, &ChannelError{
 					Channel: channelName, Notification: name,
 					OwnerKind: kind, OwnerID: id, Err: err,
 				}))
@@ -236,19 +242,19 @@ func (n *Notifier) Supports(to Notifiable, notification Notification) error {
 // debug. The other two are bugs and go to error, because the caller is
 // expected to discard this return value: a failed notification must not fail
 // the follow that caused it, which means the log is the only trace left.
-func (n *Notifier) fail(err *ChannelError) error {
+func (n *Notifier) fail(ctx context.Context, err *ChannelError) error {
 	level := slog.LevelError
 	if errors.Is(err, ErrNoRoute) {
 		level = slog.LevelDebug
 	}
-	slog.Log(context.Background(), level, "notify: a channel did not deliver",
+	slog.Log(ctx, level, "notify: a channel did not deliver",
 		"channel", err.Channel,
 		"notification", err.Notification,
 		"owner_kind", err.OwnerKind,
 		"owner_id", err.OwnerID,
 		"error", err.Err)
 
-	n.emit(Failed{
+	n.emit(ctx, Failed{
 		Channel: err.Channel, Notification: err.Notification,
 		OwnerKind: err.OwnerKind, OwnerID: err.OwnerID, Err: err.Err,
 	})

@@ -30,12 +30,12 @@ func TestBothSinksAreCalled(t *testing.T) {
 	var viaSink, viaEmitter int
 
 	engine := app.Configure()
-	engine.On(notify.EventSent, func(any) error { viaEmitter++; return nil })
+	engine.On(notify.EventSent, func(context.Context, any) error { viaEmitter++; return nil })
 
 	p := &provider.Provider{
 		Channels:  []notify.Channel{notifytest.NewRecorder("database")},
 		Events:    true,
-		EventSink: func(notify.Event) { viaSink++ },
+		EventSink: func(context.Context, notify.Event) { viaSink++ },
 	}
 	if err := p.Provide(engine); err != nil {
 		t.Fatalf("providing: %v", err)
@@ -70,7 +70,7 @@ func TestASinkThatPanicsDoesNotCostTheOtherOneItsEvent(t *testing.T) {
 	var bridgeRan, sinkRan bool
 
 	engine := app.Configure()
-	engine.On(notify.EventSent, func(any) error {
+	engine.On(notify.EventSent, func(context.Context, any) error {
 		bridgeRan = true
 		panic("a listener that panics")
 	})
@@ -82,7 +82,7 @@ func TestASinkThatPanicsDoesNotCostTheOtherOneItsEvent(t *testing.T) {
 		// Sent, so a sink recording any event at all has already run by the
 		// time the panicking one arrives — which made the first version of
 		// this test pass with the per-sink recover deleted.
-		EventSink: func(e notify.Event) {
+		EventSink: func(_ context.Context, e notify.Event) {
 			if e.EventName() == notify.EventSent {
 				sinkRan = true
 			}
