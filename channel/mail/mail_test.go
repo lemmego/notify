@@ -166,3 +166,105 @@ func TestATransportFailureIsReported(t *testing.T) {
 		t.Fatalf("got %v, want the transport's own failure", err)
 	}
 }
+
+// localizedReader is a notifiable that has chosen a language.
+type localizedReader struct {
+	email  string
+	locale string
+	known  bool
+}
+
+func (r localizedReader) NotifiableKey() (string, string) { return "user", "1" }
+func (r localizedReader) MailAddress() (lmail.Address, bool) {
+	return lmail.Address{Email: r.email}, r.email != ""
+}
+func (r localizedReader) PreferredLocale() (string, bool) { return r.locale, r.known }
+
+// TestAPreferredLocaleReachesTheMailer, through a context the application
+// shapes, so neither module learns what the other means by a language.
+func TestAPreferredLocaleReachesTheMailer(t *testing.T) {
+	var seen string
+	recorder := mailtest.NewRecorder()
+	mailer := lmail.New(recorder, lmail.NewRenderer(t.TempDir()), lmail.Address{Email: "hello@example.test"},
+		lmail.WithLocale(func(ctx lmail.Context) string {
+			locale, _ := ctx.Value(testLocaleKey{}).(string)
+			seen = locale
+			return locale
+		}),
+	)
+
+	channel := mailchan.New(mailer,
+		mailchan.WithQueue(false),
+		mailchan.WithLocale(func(ctx context.Context, locale string) context.Context {
+			return context.WithValue(ctx, testLocaleKey{}, locale)
+		}),
+	)
+
+	to := localizedReader{email: "reader@example.test", locale: "fr", known: true}
+	if err := channel.Send(context.Background(), to, matched{}); err != nil {
+		t.Fatal(err)
+	}
+	if seen != "fr" {
+		t.Errorf("the mailer saw locale %q, want fr", seen)
+	}
+}
+
+// TestNoPreferenceLooksNothingLikeAPreferenceForTheDefault.
+//
+// The (value, ok) pair exists so a recipient can say "I have never chosen",
+// and that has to reach the mailer as an empty string — not as the default
+// locale — or every send stats a directory named after the language it was
+// already going to use.
+func TestNoPreferenceLooksNothingLikeAPreferenceForTheDefault(t *testing.T) {
+	var asked bool
+	var seen string
+	recorder := mailtest.NewRecorder()
+	mailer := lmail.New(recorder, lmail.NewRenderer(t.TempDir()), lmail.Address{Email: "hello@example.test"},
+		lmail.WithLocale(func(ctx lmail.Context) string {
+			asked = true
+			seen, _ = ctx.Value(testLocaleKey{}).(string)
+			return seen
+		}),
+	)
+	channel := mailchan.New(mailer,
+		mailchan.WithQueue(false),
+		mailchan.WithLocale(func(ctx context.Context, locale string) context.Context {
+			return context.WithValue(ctx, testLocaleKey{}, locale)
+		}),
+	)
+
+	to := localizedReader{email: "reader@example.test", known: false}
+	if err := channel.Send(context.Background(), to, matched{}); err != nil {
+		t.Fatal(err)
+	}
+	if !asked {
+		t.Fatal("the mailer never consulted the locale function")
+	}
+	if seen != "" {
+		t.Errorf("locale = %q; a recipient who has chosen nothing must not be "+
+			"reported as choosing the default", seen)
+	}
+}
+
+// TestAnUnwiredWithLocaleStillDelivers, loudly.
+//
+// The preference is dropped because there is nowhere to put it, and the mail
+// goes out in the default language — which is right. What is not acceptable is
+// doing it silently, so this asserts the delivery and leaves the warning to
+// the one place it can be observed: it is logged once per process, naming the
+// type.
+func TestAnUnwiredWithLocaleStillDelivers(t *testing.T) {
+	recorder := mailtest.NewRecorder()
+	mailer := lmail.New(recorder, lmail.NewRenderer(t.TempDir()), lmail.Address{Email: "hello@example.test"})
+	channel := mailchan.New(mailer, mailchan.WithQueue(false))
+
+	to := localizedReader{email: "reader@example.test", locale: "fr", known: true}
+	if err := channel.Send(context.Background(), to, matched{}); err != nil {
+		t.Fatalf("an unwired locale must cost a language, not the notification: %v", err)
+	}
+	if len(recorder.Messages()) != 1 {
+		t.Errorf("sent %d messages, want 1", len(recorder.Messages()))
+	}
+}
+
+type testLocaleKey struct{}

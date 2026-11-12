@@ -11,6 +11,8 @@ package mail
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"sync"
 
 	lmail "github.com/lemmego/mail"
 	"github.com/lemmego/tasker"
@@ -54,6 +56,25 @@ type Channel struct {
 	mailer      *lmail.Mailer
 	queue       bool
 	dispatchOpt []tasker.DispatchOpt
+	locale      func(context.Context, string) context.Context
+	warnOnce    sync.Once
+}
+
+// Localized is the optional interface a notifiable implements to say which
+// language to write to it in.
+//
+// Declared here rather than in notify, for the reason notify's package doc
+// gives for an email address: that package never learns what one is, and it
+// must not learn what a locale is either. A string rather than a language tag
+// so a recipient can answer out of whatever column it already has without
+// importing x/text to be mailed in French.
+//
+// The bool mirrors MailAddress exactly, and means the same thing: "this person
+// has never chosen a language" is a state, not a failure. Unlike a missing
+// address it is never even a problem — mail in the default language is a
+// perfectly good outcome — so it is not reported.
+type Localized interface {
+	PreferredLocale() (locale string, ok bool)
 }
 
 // Option configures a Channel.
@@ -74,6 +95,28 @@ func WithQueue(queue bool) Option {
 // a delay.
 func WithDispatchOpts(opts ...tasker.DispatchOpt) Option {
 	return func(c *Channel) { c.dispatchOpt = opts }
+}
+
+// WithLocale wires a recipient's preferred language into the context the
+// mailer reads.
+//
+// It takes a function so that this package needs no translator: the
+// application supplies something that puts the locale where mail will find
+// it, which with lemmego/i18n is one line —
+//
+//	mailchan.WithLocale(func(ctx context.Context, locale string) context.Context {
+//	    return i18n.With(ctx, localizer.For(locale))
+//	})
+//
+// paired with mail.WithLocale(i18n.LocaleOf) on the mailer. Neither module
+// imports the other's idea of a language, and an application that wires this
+// channel and translates nothing links no CLDR tables.
+//
+// Left unwired while a notifiable declares Localized, the preference is
+// dropped and warned about once — see Send. A notification delivered silently
+// in the wrong language is the hardest kind to be told about.
+func WithLocale(f func(context.Context, string) context.Context) Option {
+	return func(c *Channel) { c.locale = f }
 }
 
 // New builds the channel over a mailer.
@@ -127,11 +170,51 @@ func (c *Channel) Send(ctx context.Context, to notify.Notifiable, n notify.Notif
 		return fmt.Errorf("%w: %T returned a nil mailable", notify.ErrUnsupported, n)
 	}
 
+	ctx = c.withLocale(ctx, to)
+
 	addressed := addressedTo{inner: built, to: []lmail.Address{address}}
 	if c.queue {
 		return c.mailer.Queue(ctx, addressed, c.dispatchOpt...)
 	}
 	return c.mailer.Send(ctx, addressed)
+}
+
+// withLocale puts the recipient's language on the context, for the mailer to
+// read when it renders.
+//
+// Before Queue rather than after, and that ordering is the feature: Queue
+// renders eagerly on this goroutine and enqueues a self-contained Message, so
+// a worker has no context and nothing to resolve. The language has to be
+// settled here or not at all.
+func (c *Channel) withLocale(ctx context.Context, to notify.Notifiable) context.Context {
+	localized, ok := to.(Localized)
+	if !ok {
+		return ctx
+	}
+	locale, ok := localized.PreferredLocale()
+	if !ok || locale == "" {
+		return ctx
+	}
+	if c.locale == nil {
+		// Once per process, naming the type, because the alternative is a
+		// person who chose a language quietly receiving every email in
+		// another one — with nothing anywhere to say the preference was read
+		// and thrown away. This is the first warn-once in this module; the
+		// others log per occurrence because they describe one delivery, and
+		// this describes a missing wire that will be missing for every one.
+		c.warnOnce.Do(func() {
+			slog.Warn("notify/mail: a recipient has a preferred locale and no "+
+				"WithLocale is configured, so mail will go out in the default "+
+				"language",
+				"notifiable", fmt.Sprintf("%T", to),
+				"locale", locale)
+		})
+		return ctx
+	}
+	if next := c.locale(ctx, locale); next != nil {
+		return next
+	}
+	return ctx
 }
 
 // addressedTo fills in a recipient the notification did not name.

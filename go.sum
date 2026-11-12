@@ -35,10 +35,10 @@ github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
 github.com/joho/godotenv v1.5.1 h1:7eLL/+HRGLY0ldzfGMeQkb7vMd0as4CfYvUVzLqw0N0=
 github.com/joho/godotenv v1.5.1/go.mod h1:f4LDr5Voq0i2e/R5DDNOoa2zzDfwtkZa6DnEwAbqwq4=
-github.com/lemmego/api v0.10.0 h1:X1Mq0LMLvFQvCFjEXXdDQ/B6WgmzawPyc5Vvt1WP4BE=
-github.com/lemmego/api v0.10.0/go.mod h1:i+PEPsqTj6AXQ7im8bhXabCatrBApgmajPGAlrrQ6KU=
-github.com/lemmego/mail v0.2.4 h1:93BwGbP91jaAjSpUD+ZiS6OYcWg0VN565V2HKkLaOKw=
-github.com/lemmego/mail v0.2.4/go.mod h1:CSthmLG5vZ3F1cldKLQdK50fwgI+rJfMIRUd4oqBFkQ=
+github.com/lemmego/api v0.11.0 h1:KUjM1Nt6xlYZRXH90gyWKGGOov06JQCMI2wtvyzlMtM=
+github.com/lemmego/api v0.11.0/go.mod h1:i+PEPsqTj6AXQ7im8bhXabCatrBApgmajPGAlrrQ6KU=
+github.com/lemmego/mail v0.3.0 h1:Z5XJ6Q1zpLswvIbZ9ybj6pcJoTRQFj8KgDubkxsasag=
+github.com/lemmego/mail v0.3.0/go.mod h1:49oeiffW6K70reSDqAvR3GOg5hw38DgN5PV7vsILkP8=
 github.com/lemmego/migration v0.2.0 h1:e4eE8L65ETE48rAhl8kcuu0PtdSvTFVxvqsMa/7Po40=
 github.com/lemmego/migration v0.2.0/go.mod h1:JNl9fUnUF9+tJ3hKGZftWoyaUrEh6rEn+jbOICpY8TY=
 github.com/lemmego/queue v0.4.4 h1:1Wm0A6MC5zWUb42cx/nwv1FbKsvaOXWHG3xO+2hh15U=
