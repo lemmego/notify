@@ -4,7 +4,7 @@ go 1.27
 
 require (
 	github.com/glebarez/go-sqlite v1.22.0
-	github.com/lemmego/api v0.13.0
+	github.com/lemmego/api v0.14.0
 	github.com/lemmego/mail v0.3.0
 	github.com/lemmego/tasker v0.1.6
 	github.com/lib/pq v1.10.9
@@ -23,7 +23,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/joho/godotenv v1.5.1 // indirect
-	github.com/lemmego/migration v0.2.0 // indirect
+	github.com/lemmego/migration v0.6.0 // indirect
 	github.com/lemmego/queue v0.4.4 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
