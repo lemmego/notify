@@ -43,8 +43,8 @@ github.com/lemmego/migration v0.6.0 h1:t5DZl0+VzOkiw783SHaBkPr2+lunktOtnF86uen0g
 github.com/lemmego/migration v0.6.0/go.mod h1:ThmjL0yDtJ1knCvEFM23vFlZPMvmOyelV/zWeSn9Ydw=
 github.com/lemmego/queue v0.4.4 h1:1Wm0A6MC5zWUb42cx/nwv1FbKsvaOXWHG3xO+2hh15U=
 github.com/lemmego/queue v0.4.4/go.mod h1:/0BqMVVMjdXhLnWhsHdaEoNwx/Q9mmy7TFKDFUC7KbM=
-github.com/lemmego/tasker v0.1.6 h1:1p4jsO+9T+da/a3OtA5Oxi53wrM9m1b613XceAgMqaY=
-github.com/lemmego/tasker v0.1.6/go.mod h1:K+Rzd2m6GoencYHL0TfRIFQsbm8K6e2SHR9Oj1Nejlo=
+github.com/lemmego/tasker v0.3.4 h1:1+6MieYE6rK2ZlwK90B3UC7PkfVdHtctIhBV7mtI5E4=
+github.com/lemmego/tasker v0.3.4/go.mod h1:K+Rzd2m6GoencYHL0TfRIFQsbm8K6e2SHR9Oj1Nejlo=
 github.com/lib/pq v1.10.9 h1:YXG7RB+JIjhP29X+OtkiDnYaXQwpS4JEWq7dtCCRUEw=
 github.com/lib/pq v1.10.9/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=

@@ -6,7 +6,7 @@ require (
 	github.com/glebarez/go-sqlite v1.22.0
 	github.com/lemmego/api v0.14.0
 	github.com/lemmego/mail v0.3.0
-	github.com/lemmego/tasker v0.1.6
+	github.com/lemmego/tasker v0.3.4
 	github.com/lib/pq v1.10.9
 )
 
